@@ -100,7 +100,41 @@ async function start(){
    unsubs.forEach(f=>f());unsubs=[];currentUser=user;
    $('loginPanel').classList.toggle('hidden',!!user);$('app').classList.toggle('hidden',!user);$('logoutBtn').classList.toggle('hidden',!user);$('userBadge').textContent=user?.email||'';
    if(!user){setConnection('Signed out');return}
-   try{const p=await getDoc(doc(db,'users',user.uid));profile=p.exists()?p.data():null;if(!profile||profile.active!==true){await signOut(auth);msg('loginMsg','This account is not activated by the administrator.',true);return}setConnection('Cloud synced',true);$('setupNotice').classList.add('hidden');listenAll()}catch(e){$('appMsg').textContent='Unable to load profile: '+e.message;$('appMsg').className='notice bad'}
+   
+try {
+  const p = await getDoc(doc(db, 'users', user.uid));
+  profile = p.exists() ? p.data() : null;
+
+  if (!p.exists()) {
+    const uid = user.uid;
+    await signOut(auth);
+    msg('loginMsg', 'DEBUG: User document not found. UID: ' + uid, true);
+    return;
+  }
+
+  if (profile.active !== true) {
+    const uid = user.uid;
+    const activeValue = String(profile.active);
+    const activeType = typeof profile.active;
+    await signOut(auth);
+    msg(
+      'loginMsg',
+      'DEBUG: UID=' + uid +
+      ', active=' + activeValue +
+      ', type=' + activeType,
+      true
+    );
+    return;
+  }
+
+  setConnection('Cloud synced', true);
+  $('setupNotice').classList.add('hidden');
+  listenAll();
+} catch (e) {
+  $('appMsg').textContent = 'Unable to load profile: ' + e.message;
+  $('appMsg').className = 'notice bad';
+}
+setConnection('Cloud synced',true);$('setupNotice').classList.add('hidden');listenAll()}catch(e){$('appMsg').textContent='Unable to load profile: '+e.message;$('appMsg').className='notice bad'}
   });
  }catch(e){setConnection('Setup needed');$('setupNotice').textContent='Setup required: '+e.message+'. See README.txt for exact steps. The app cannot sync until Firebase is configured.';$('setupNotice').className='notice bad'}
 }
