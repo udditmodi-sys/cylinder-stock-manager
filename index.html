@@ -142,6 +142,8 @@ setConnection('Cloud synced',true);$('setupNotice').classList.add('hidden');list
     'Setup error: ' + (e.stack || e.message || String(e));
   $('setupNotice').className = 'notice bad';
   console.error('Firebase setup error:', e);
+}
+  console.error('Firebase setup error:', e);
  }
 }
 start();
