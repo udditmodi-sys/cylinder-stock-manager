@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cylinder Stock Manager — Cloud Sync</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#172033;background:#f4f6fa}*{box-sizing:border-box}body{margin:0}header{background:#172b4d;color:#fff;padding:18px 20px;display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}header h1{font-size:21px;margin:0}header p{margin:4px 0 0;color:#d5dfef;font-size:13px}.wrap{max-width:1200px;margin:auto;padding:18px}.notice{padding:12px 14px;border-radius:10px;background:#fff4d6;color:#674b00;border:1px solid #f0d98f;margin-bottom:14px;font-size:13px}.notice.good{background:#e6f7ed;color:#14532d;border-color:#a7e2bd}.notice.bad{background:#fee2e2;color:#7f1d1d;border-color:#fecaca}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric,.panel{background:white;border:1px solid #e1e6ef;border-radius:13px;padding:15px;box-shadow:0 2px 8px #12213b0a}.metric small{color:#667085}.metric strong{display:block;font-size:27px;margin-top:6px}.tabs{display:flex;gap:7px;overflow:auto;margin:17px 0}.tabs button{white-space:nowrap}.btn,button{border:0;border-radius:9px;padding:10px 13px;background:#e9eef7;color:#172033;font-weight:650;cursor:pointer}.btn.primary,button.primary{background:#2459a9;color:#fff}.btn.danger{background:#fee2e2;color:#991b1b}button:disabled{opacity:.5;cursor:not-allowed}.tabs button.active{background:#2459a9;color:#fff}.panel{margin-bottom:14px}.panel h2{font-size:17px;margin:0 0 12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.field{display:flex;flex-direction:column;gap:5px;min-width:140px;flex:1}.field label{font-size:12px;color:#475467;font-weight:700}.field input,.field select,.field textarea{width:100%;border:1px solid #cfd6e2;border-radius:8px;padding:10px;font:inherit;background:#fff}.field textarea{min-height:70px}.field button{align-self:flex-start}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;border-bottom:1px solid #e8ecf3;padding:10px 8px;vertical-align:top}th{color:#667085;font-size:11px;text-transform:uppercase;letter-spacing:.04em}td.num{text-align:right;font-variant-numeric:tabular-nums}.tablewrap{overflow:auto}.hidden{display:none!important}.status{font-size:12px;background:#e8eef8;padding:6px 9px;border-radius:99px}.status.online{background:#d8f6e4;color:#14532d}.status.offline{background:#ffedcc;color:#754c00}.muted{color:#667085;font-size:13px}.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}.inline-actions{display:flex;gap:6px;flex-wrap:wrap}.login{max-width:460px;margin:40px auto}.dangertext{color:#9f1239}.small{font-size:12px}@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.split{grid-template-columns:1fr}.wrap{padding:12px}header{padding:15px}.metric strong{font-size:22px}}
+</style>
+</head>
+<body>
+<header><div><h1>🧯 Cylinder Stock Manager</h1><p>Shared cloud stock • Godowns • Parties • Filling plants</p></div><div class="row" style="align-items:center"><span id="connection" class="status offline">Not configured</span><span id="userBadge" class="small"></span><button id="logoutBtn" class="hidden">Sign out</button></div></header>
+<div class="wrap">
+<div id="setupNotice" class="notice">Cloud sync setup required. Add your Firebase web-app configuration in <b>firebase-config.js</b>, enable Email/Password sign-in, and deploy the Firestore rules included in this package. Until configured, shared login and cloud sync will not work.</div>
+<div id="loginPanel" class="panel login"><h2>Employee sign in</h2><p class="muted">Use the email and password created by your company administrator.</p><div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username" placeholder="employee@company.com"></div><div class="field" style="margin-top:10px"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password"></div><div class="row" style="margin-top:12px"><button id="loginBtn" class="primary">Sign in</button><button id="resetBtn">Reset password</button></div><p id="loginMsg" class="muted"></p><p class="small">User accounts must be created by the administrator in Firebase Authentication or through a trusted admin process. Public self-registration is disabled.</p></div>
+<div id="app" class="hidden">
+<div id="appMsg" class="notice good">Connected. Stock changes are saved to the shared cloud database.</div>
+<div class="grid"><div class="metric"><small>Filled cylinders</small><strong id="totalFilled">0</strong></div><div class="metric"><small>Empty cylinders</small><strong id="totalEmpty">0</strong></div><div class="metric"><small>Locations</small><strong id="totalLocations">0</strong></div><div class="metric"><small>Movements</small><strong id="totalMoves">0</strong></div></div>
+<div class="tabs" id="tabs"><button class="active" data-tab="dashboard">Dashboard</button><button data-tab="movement">Stock movement</button><button data-tab="balances">Balances</button><button data-tab="masters">Masters & opening stock</button><button data-tab="reports">Reports</button><button data-tab="users">Employee access</button></div>
+<section id="tab-dashboard"><div class="panel"><h2>Gas-wise stock summary</h2><div id="gasSummary" class="tablewrap"></div></div><div class="panel"><h2>Recent movements</h2><div id="recentMoves" class="tablewrap"></div></div></section>
+<section id="tab-movement" class="hidden"><div class="panel"><h2>Record stock movement</h2><p class="muted">Filled/empty stock is tracked only at Godowns. At Parties and Plants, only the total cylinder count is tracked.</p><div class="row"><div class="field"><label>Date</label><input id="moveDate" type="date"></div><div class="field"><label>Gas</label><select id="moveGas"></select></div><div class="field"><label id="moveConditionLabel">Condition at Godown</label><select id="moveCondition"><option>Filled</option><option>Empty</option></select></div><div class="field"><label>Quantity</label><input id="moveQty" type="number" min="1" step="1" placeholder="e.g. 10"></div></div><div class="row" style="margin-top:10px"><div class="field"><label>From location</label><select id="moveFrom"></select></div><div class="field"><label>To location</label><select id="moveTo"></select></div><div class="field"><label>Reference / note</label><input id="moveNote" placeholder="Invoice, challan, driver, etc."></div></div><div style="margin-top:12px"><button id="saveMove" class="primary">Save movement</button></div><p id="moveMsg" class="muted"></p></div></section>
+<section id="tab-balances" class="hidden"><div class="panel"><h2>Current balances</h2><div class="row"><div class="field"><label>Location</label><select id="balanceLocation"></select></div><div class="field"><label>Gas</label><select id="balanceGas"></select></div><div class="field"><label id="balanceConditionLabel">Condition (Godown only)</label><select id="balanceCondition"><option value="">All</option><option>Filled</option><option>Empty</option></select></div></div><div id="balancesTable" class="tablewrap" style="margin-top:12px"></div></div></section>
+<section id="tab-masters" class="hidden"><div class="split"><div class="panel"><h2>Add location</h2><div class="field"><label>Location name</label><input id="locName" placeholder="Main Godown / Party name / Plant name"></div><div class="field" style="margin-top:8px"><label>Type</label><select id="locType"><option>Godown</option><option>Party</option><option>Plant</option></select></div><div class="field" style="margin-top:8px"><label>Contact / details (optional)</label><input id="locDetails" placeholder="Phone, address, etc."></div><button id="addLocation" class="primary" style="margin-top:10px">Add location</button><div id="locationsTable" class="tablewrap" style="margin-top:12px"></div></div><div class="panel"><h2>Add gas type</h2><div class="field"><label>Gas name</label><input id="gasName" placeholder="Argon / Oxygen / Nitrogen"></div><button id="addGas" class="primary" style="margin-top:10px">Add gas</button><div id="gasesTable" class="tablewrap" style="margin-top:12px"></div></div></div><div class="panel"><h2>Opening stock (initial quantity)</h2><p class="muted">For Godowns, enter opening Filled and Empty separately. For Parties and Plants, enter only the total number of cylinders, regardless of condition.</p><div class="row"><div class="field"><label>Location</label><select id="openingLocation"></select></div><div class="field"><label>Gas</label><select id="openingGas"></select></div><div class="field"><label id="openingConditionLabel">Condition (Godown only)</label><select id="openingCondition"><option>Filled</option><option>Empty</option></select></div><div class="field"><label>Quantity</label><input id="openingQty" type="number" min="0" step="1" value="0"></div></div><button id="saveOpening" class="primary" style="margin-top:10px">Save opening stock</button><p id="openingMsg" class="muted"></p></div></section>
+<section id="tab-reports" class="hidden"><div class="panel"><h2>Movement report</h2><div class="row"><div class="field"><label>From date</label><input id="reportFrom" type="date"></div><div class="field"><label>To date</label><input id="reportTo" type="date"></div><div class="field"><label>Location (source or destination)</label><select id="reportLocation"></select></div><div class="field"><label>Gas</label><select id="reportGas"></select></div></div><div class="inline-actions" style="margin-top:12px"><button id="runReport" class="primary">Apply filters</button><button id="exportCsv">Export CSV for Excel</button><button id="printReport">Print / Save PDF</button></div><div id="reportTable" class="tablewrap" style="margin-top:12px"></div></div></section>
+<section id="tab-users" class="hidden"><div class="panel"><h2>Employee access</h2><p>For this small team, create employee accounts in Firebase Console → Authentication → Users → Add user. Give each employee their own login; do not share passwords.</p><ol><li>Enable Email/Password provider in Firebase Authentication.</li><li>Create one account for each employee.</li><li>Add the user's email and role in Firestore under <code>users/{uid}</code>, e.g. <code>{ email: "employee@company.com", role: "employee", active: true }</code>.</li><li>For the administrator, set role to <code>admin</code>.</li></ol><div class="notice">This app's included rules allow signed-in active users to manage stock data. Admin-only account/role management should be done through the Firebase Console or a trusted server process. Never allow employees to edit their own role.</div><h2>Cloud status / current user</h2><div id="userDetails"></div></div></section>
+</div>
+</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, runTransaction, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+let cfg=null, app=null, auth=null, db=null, currentUser=null, profile=null, unsubs=[], locations=[], gases=[], balances=[], movements=[], openings=[], reportRows=[];
+const $=id=>document.getElementById(id);
+const today=new Date().toISOString().slice(0,10); $('moveDate').value=today;
+function setConnection(text,online=false){$('connection').textContent=text;$('connection').className='status '+(online?'online':'offline')}
+function msg(id,s,err=false){$(id).textContent=s;$(id).style.color=err?'#b42318':'#667085'}
+function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function optList(el,items,first='Select…',valueFn=x=>x.id,labelFn=x=>x.name){const old=el.value;el.innerHTML=`<option value="">${first}</option>`+items.map(x=>`<option value="${escapeHtml(valueFn(x))}">${escapeHtml(labelFn(x))}</option>`).join('');if(items.some(x=>valueFn(x)===old))el.value=old}
+function table(headers,rows){return `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.join(''):`<tr><td colspan="${headers.length}" class="muted">No records yet.</td></tr>`}</tbody></table>`}
+function balKey(loc,gas,cond){return `${loc}__${gas}__${cond}`}
+function findName(arr,id){return arr.find(x=>x.id===id)?.name||'—'}
+function n(v){return Number(v||0)}
+function safeDate(d){return d?.toDate?d.toDate().toISOString().slice(0,10):(d||'')}
+function listenAll(){
+  unsubs.forEach(f=>f());unsubs=[];
+  for(const [coll,cb] of [['locations',v=>{locations=v;renderAll()}],['gases',v=>{gases=v;renderAll()}],['balances',v=>{balances=v;renderAll()}],['openings',v=>{openings=v;renderAll()}],['movements',v=>{movements=v.sort((a,b)=>(b.date||'').localeCompare(a.date||''));renderAll()}]]){
+    unsubs.push(onSnapshot(collection(db,coll),snap=>cb(snap.docs.map(d=>({id:d.id,...d.data()}))),e=>{console.error(e);$('appMsg').textContent='Cloud read error: '+e.message;$('appMsg').className='notice bad'}));
+  }
+}
+function renderAll(){
+  const godownIds=new Set(locations.filter(l=>l.type==='Godown').map(l=>l.id));
+  const fill=balances.filter(b=>godownIds.has(b.locationId)&&b.condition==='Filled').reduce((s,b)=>s+n(b.qty),0), empty=balances.filter(b=>godownIds.has(b.locationId)&&b.condition==='Empty').reduce((s,b)=>s+n(b.qty),0);
+  $('totalFilled').textContent=fill;$('totalEmpty').textContent=empty;$('totalLocations').textContent=locations.length;$('totalMoves').textContent=movements.length;
+  const gasRows=gases.map(g=>{const bs=balances.filter(b=>b.gasId===g.id&&godownIds.has(b.locationId));return `<tr><td>${escapeHtml(g.name)}</td><td class="num">${bs.filter(b=>b.condition==='Filled').reduce((s,b)=>s+n(b.qty),0)}</td><td class="num">${bs.filter(b=>b.condition==='Empty').reduce((s,b)=>s+n(b.qty),0)}</td></tr>`});
+  $('gasSummary').innerHTML=table(['Gas','Filled','Empty'],gasRows);
+  $('recentMoves').innerHTML=table(['Date','Gas / condition','Qty','From → To','Note'],movements.slice(0,10).map(m=>`<tr><td>${escapeHtml(m.date||'')}</td><td>${escapeHtml(findName(gases,m.gasId))} / ${escapeHtml(m.condition)}</td><td>${n(m.qty)}</td><td>${escapeHtml(findName(locations,m.fromId))} → ${escapeHtml(findName(locations,m.toId))}</td><td>${escapeHtml(m.note||'')}</td></tr>`));
+  const locOpts=locations;['moveFrom','moveTo','balanceLocation','openingLocation','reportLocation'].forEach(id=>optList($(id),locOpts,id==='balanceLocation'||id==='reportLocation'?'All locations':'Select location',x=>x.id,x=>`${x.name} (${x.type})`));
+  ['moveGas','balanceGas','openingGas','reportGas'].forEach(id=>optList($(id),gases,id==='balanceGas'||id==='reportGas'?'All gases':'Select gas',x=>x.id,x=>x.name));
+  $('locationsTable').innerHTML=table(['Location','Type','Details','Actions'],locations.map(l=>`<tr><td>${escapeHtml(l.name)}</td><td>${escapeHtml(l.type)}</td><td>${escapeHtml(l.details||'')}</td><td><div class="inline-actions"><button data-location-edit="${escapeHtml(l.id)}">Edit</button><button class="btn danger" data-location-delete="${escapeHtml(l.id)}">Delete</button></div></td></tr>`));
+  $('gasesTable').innerHTML=table(['Gas','Actions'],gases.map(g=>`<tr><td>${escapeHtml(g.name)}</td><td><div class="inline-actions"><button data-gas-edit="${escapeHtml(g.id)}">Edit</button><button class="btn danger" data-gas-delete="${escapeHtml(g.id)}">Delete</button></div></td></tr>`));
+  $('locationsTable').querySelectorAll('[data-location-edit]').forEach(b=>b.onclick=()=>editLocation(b.dataset.locationEdit));
+  $('locationsTable').querySelectorAll('[data-location-delete]').forEach(b=>b.onclick=()=>deleteLocation(b.dataset.locationDelete));
+  $('gasesTable').querySelectorAll('[data-gas-edit]').forEach(b=>b.onclick=()=>editGas(b.dataset.gasEdit));
+  $('gasesTable').querySelectorAll('[data-gas-delete]').forEach(b=>b.onclick=()=>deleteGas(b.dataset.gasDelete));
+  refreshConditionControls();renderBalances();renderReport();if(currentUser)$('userDetails').innerHTML=`<p><b>Email:</b> ${escapeHtml(currentUser.email)}<br><b>Role:</b> ${escapeHtml(profile?.role||'employee')}<br><b>UID:</b> <code>${escapeHtml(currentUser.uid)}</code></p>`;
+}
+function renderBalances(){
+ const loc=$('balanceLocation').value,gas=$('balanceGas').value,cond=$('balanceCondition').value;
+ const selected=locations.find(l=>l.id===loc);
+ $('balanceCondition').parentElement.classList.toggle('hidden',!!selected&&selected.type!=='Godown');
+ const rows=[];
+ const targets=balances.filter(b=>(!loc||b.locationId===loc)&&(!gas||b.gasId===gas));
+ const byLocGas=new Map();
+ for(const b of targets){
+   const location=locations.find(l=>l.id===b.locationId),isGodown=location?.type==='Godown';
+   const shownCondition=isGodown?b.condition:'Total';
+   if(isGodown&&cond&&b.condition!==cond)continue;
+   const key=`${b.locationId}__${b.gasId}__${shownCondition}`;
+   byLocGas.set(key,(byLocGas.get(key)||0)+n(b.qty));
+ }
+ for(const [key,qty] of byLocGas){const [locationId,gasId,condition]=key.split('__');rows.push(`<tr><td>${escapeHtml(findName(locations,locationId))}</td><td>${escapeHtml(findName(gases,gasId))}</td><td>${escapeHtml(condition)}</td><td class="num">${qty}</td></tr>`)}
+ $('balancesTable').innerHTML=table(['Location','Gas','Stock tracked as','Balance'],rows);
+}
+function locationType(id){return locations.find(l=>l.id===id)?.type||''}
+function refreshConditionControls(){
+ const fromType=locationType($('moveFrom').value),toType=locationType($('moveTo').value);
+ const needsCondition=fromType==='Godown'||toType==='Godown';
+ $('moveCondition').parentElement.classList.toggle('hidden',!needsCondition);
+ $('moveConditionLabel').textContent='Condition at Godown';
+ const openType=locationType($('openingLocation').value),isGodown=openType==='Godown';
+ $('openingCondition').parentElement.classList.toggle('hidden',!isGodown);
+ $('openingConditionLabel').textContent=isGodown?'Condition (Godown only)':'Condition (not used for Party/Plant)';
+ if(!isGodown)$('openingCondition').value='Filled';
+ renderBalances();
+}
+function filteredReport(){
+ const from=$('reportFrom').value,to=$('reportTo').value,loc=$('reportLocation').value,gas=$('reportGas').value;
+ return movements.filter(m=>(!from||(m.date||'')>=from)&&(!to||(m.date||'')<=to)&&(!loc||m.fromId===loc||m.toId===loc)&&(!gas||m.gasId===gas));
+}
+function renderReport(){
+ reportRows=filteredReport();$('reportTable').innerHTML=table(['Date','Gas','Condition','Qty','From','To','Reference / note','Entered by'],reportRows.map(m=>`<tr><td>${escapeHtml(m.date||'')}</td><td>${escapeHtml(findName(gases,m.gasId))}</td><td>${escapeHtml(m.condition)}</td><td>${n(m.qty)}</td><td>${escapeHtml(findName(locations,m.fromId))}</td><td>${escapeHtml(findName(locations,m.toId))}</td><td>${escapeHtml(m.note||'')}</td><td>${escapeHtml(m.createdByEmail||'')}</td></tr>`));
+}
+function activateTab(name){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));['dashboard','movement','balances','masters','reports','users'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==name))}
+document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>activateTab(b.dataset.tab)));
+['balanceLocation','balanceGas','balanceCondition'].forEach(id=>$(id).addEventListener('change',renderBalances));
+['moveFrom','moveTo','openingLocation'].forEach(id=>$(id).addEventListener('change',refreshConditionControls));
+['reportFrom','reportTo','reportLocation','reportGas'].forEach(id=>$(id).addEventListener('change',renderReport));
+$('runReport').onclick=renderReport;
+$('exportCsv').onclick=()=>{const rows=[['Date','Gas','Condition','Qty','From','To','Reference / note','Entered by'],...reportRows.map(m=>[m.date,findName(gases,m.gasId),m.condition,m.qty,findName(locations,m.fromId),findName(locations,m.toId),m.note||'',m.createdByEmail||''])];const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));a.download='cylinder-movement-report.csv';a.click();URL.revokeObjectURL(a.href)};
+$('printReport').onclick=()=>{const w=window.open('','_blank');if(!w){alert('Please allow pop-ups to print the report.');return}w.document.write(`<html><head><title>Cylinder Movement Report</title><style>body{font:12px Arial;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px;text-align:left}h1{font-size:18px}</style></head><body><h1>Cylinder Movement Report</h1><p>Generated ${new Date().toLocaleString()}</p>${$('reportTable').innerHTML}</body></html>`);w.document.close();w.focus();w.print()};
+$('addLocation').onclick=async()=>{const name=$('locName').value.trim();if(!name)return alert('Enter a location name.');try{await addDoc(collection(db,'locations'),{name,type:$('locType').value,details:$('locDetails').value.trim(),createdAt:serverTimestamp(),createdBy:currentUser.uid});$('locName').value='';$('locDetails').value=''}catch(e){alert(e.message)}};
+$('addGas').onclick=async()=>{const name=$('gasName').value.trim();if(!name)return alert('Enter a gas name.');if(gases.some(g=>g.name.toLowerCase()===name.toLowerCase()))return alert('This gas already exists.');try{await addDoc(collection(db,'gases'),{name,createdAt:serverTimestamp(),createdBy:currentUser.uid});$('gasName').value=''}catch(e){alert(e.message)}};
+async function editLocation(id){
+ const loc=locations.find(x=>x.id===id);if(!loc)return alert('Location not found. Please refresh and try again.');
+ const name=prompt('Edit location / party / plant name:',loc.name);if(name===null)return;const cleanName=name.trim();if(!cleanName)return alert('Name cannot be empty.');
+ if(locations.some(x=>x.id!==id&&x.name.trim().toLowerCase()===cleanName.toLowerCase()))return alert('Another location already uses this name.');
+ const type=prompt('Type: enter Godown, Party, or Plant',loc.type);if(type===null)return;const cleanType=type.trim();if(!['Godown','Party','Plant'].includes(cleanType))return alert('Type must be exactly Godown, Party, or Plant.');
+ const details=prompt('Contact / details (optional):',loc.details||'');if(details===null)return;
+ try{await updateDoc(doc(db,'locations',id),{name:cleanName,type:cleanType,details:details.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.uid});alert('Location updated. All connected devices will sync the change.')}catch(e){alert('Could not update location: '+e.message)}
+}
+async function deleteLocation(id){
+ const loc=locations.find(x=>x.id===id);if(!loc)return alert('Location not found. Please refresh and try again.');
+ const usedInBalance=balances.some(x=>x.locationId===id),usedInOpening=openings.some(x=>x.locationId===id),usedInMove=movements.some(x=>x.fromId===id||x.toId===id);
+ if(usedInBalance||usedInOpening||usedInMove)return alert('Cannot delete this location because it is linked to stock balances, opening stock, or movement history. Edit its name/details instead so historical records remain correct.');
+ if(!confirm('Delete location “'+loc.name+'”? This cannot be undone.'))return;
+ try{await deleteDoc(doc(db,'locations',id));alert('Location deleted from the shared cloud.')}catch(e){alert('Could not delete location: '+e.message)}
+}
+async function editGas(id){
+ const gas=gases.find(x=>x.id===id);if(!gas)return alert('Gas not found. Please refresh and try again.');
+ const name=prompt('Edit gas name:',gas.name);if(name===null)return;const cleanName=name.trim();if(!cleanName)return alert('Gas name cannot be empty.');
+ if(gases.some(x=>x.id!==id&&x.name.trim().toLowerCase()===cleanName.toLowerCase()))return alert('Another gas already uses this name.');
+ try{await updateDoc(doc(db,'gases',id),{name:cleanName,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});alert('Gas updated. All connected devices will sync the change.')}catch(e){alert('Could not update gas: '+e.message)}
+}
+async function deleteGas(id){
+ const gas=gases.find(x=>x.id===id);if(!gas)return alert('Gas not found. Please refresh and try again.');
+ const usedInBalance=balances.some(x=>x.gasId===id),usedInOpening=openings.some(x=>x.gasId===id),usedInMove=movements.some(x=>x.gasId===id);
+ if(usedInBalance||usedInOpening||usedInMove)return alert('Cannot delete this gas because it is linked to stock balances, opening stock, or movement history. Edit its name instead so historical records remain correct.');
+ if(!confirm('Delete gas “'+gas.name+'”? This cannot be undone.'))return;
+ try{await deleteDoc(doc(db,'gases',id));alert('Gas deleted from the shared cloud.')}catch(e){alert('Could not delete gas: '+e.message)}
+}
+$('saveOpening').onclick=async()=>{
+ const locationId=$('openingLocation').value,gasId=$('openingGas').value,qty=Number($('openingQty').value),condition=locationType(locationId)==='Godown' ? $('openingCondition').value : 'Total';
+ if(!locationId||!gasId||!Number.isInteger(qty)||qty<0)return msg('openingMsg','Choose location/gas and enter a whole quantity of 0 or more.',true);
+ const id=balKey(locationId,gasId,condition),isGodown=locationType(locationId)==='Godown';
+ try{await runTransaction(db,async tx=>{
+   const bRef=doc(db,'balances',id),oRef=doc(db,'openings',id);
+   const refs=[tx.get(bRef),tx.get(oRef)];
+   let legacyOpeningRefs=[];
+   if(!isGodown){legacyOpeningRefs=[doc(db,'openings',balKey(locationId,gasId,'Filled')),doc(db,'openings',balKey(locationId,gasId,'Empty'))];refs.push(...legacyOpeningRefs.map(r=>tx.get(r)));}
+   const snaps=await Promise.all(refs),bs=snaps[0],os=snaps[1];
+   if(os.exists()||snaps.slice(2).some(x=>x.exists()))throw Error('Opening stock has already been recorded for this location and gas. Use stock movements for later changes.');
+   tx.set(oRef,{locationId,gasId,condition,qty,createdAt:serverTimestamp(),createdBy:currentUser.uid});
+   tx.set(bRef,{locationId,gasId,condition,qty,updatedAt:serverTimestamp()});
+ });msg('openingMsg',isGodown?'Godown opening stock saved.':'Party/Plant total cylinder opening stock saved.');}
+ catch(e){msg('openingMsg',e.message,true)}
+};
+$('saveMove').onclick=async()=>{
+ const date=$('moveDate').value,gasId=$('moveGas').value,condition=$('moveCondition').value,qty=Number($('moveQty').value),fromId=$('moveFrom').value,toId=$('moveTo').value,note=$('moveNote').value.trim();
+ const fromType=locationType(fromId),toType=locationType(toId),fromGodown=fromType==='Godown',toGodown=toType==='Godown';
+ if(!date||!gasId||!fromId||!toId||fromId===toId||!Number.isInteger(qty)||qty<=0)return msg('moveMsg','Complete all fields, enter a whole quantity above zero, and choose different source/destination locations.',true);
+ const fromCondition=fromGodown?condition:'Total',toCondition=toGodown?condition:'Total';
+ const fromKey=balKey(fromId,gasId,fromCondition),toKey=balKey(toId,gasId,toCondition),moveRef=doc(collection(db,'movements'));
+ try{await runTransaction(db,async tx=>{
+   const fRef=doc(db,'balances',fromKey),tRef=doc(db,'balances',toKey);
+   const reads=[tx.get(fRef),tx.get(tRef)];
+   const legacyRefs=[];
+   if(!fromGodown){legacyRefs.push({side:'from',condition:'Filled',ref:doc(db,'balances',balKey(fromId,gasId,'Filled'))},{side:'from',condition:'Empty',ref:doc(db,'balances',balKey(fromId,gasId,'Empty'))});}
+   if(!toGodown){legacyRefs.push({side:'to',condition:'Filled',ref:doc(db,'balances',balKey(toId,gasId,'Filled'))},{side:'to',condition:'Empty',ref:doc(db,'balances',balKey(toId,gasId,'Empty'))});}
+   reads.push(...legacyRefs.map(x=>tx.get(x.ref)));
+   const snaps=await Promise.all(reads),fs=snaps[0],ts=snaps[1],legacySnaps=snaps.slice(2);
+   const legacyQty=side=>legacyRefs.reduce((sum,x,i)=>sum+(x.side===side?n(legacySnaps[i]?.data()?.qty):0),0);
+   const available=fromGodown?(fs.exists()?n(fs.data().qty):0):(fs.exists()?n(fs.data().qty):0)+legacyQty('from');
+   if(available<qty)throw Error(`Insufficient ${fromGodown?condition.toLowerCase():'total'} cylinders at source. Available: ${available}.`);
+   const targetAvailable=toGodown?(ts.exists()?n(ts.data().qty):0):(ts.exists()?n(ts.data().qty):0)+legacyQty('to');
+   tx.set(fRef,{locationId:fromId,gasId,condition:fromCondition,qty:available-qty,updatedAt:serverTimestamp()});
+   tx.set(tRef,{locationId:toId,gasId,condition:toCondition,qty:targetAvailable+qty,updatedAt:serverTimestamp()});
+   // Legacy Party/Plant Filled and Empty balances are folded into Total and cleared when touched.
+   legacyRefs.forEach((x,i)=>{if(legacySnaps[i]?.exists())tx.set(x.ref,{...legacySnaps[i].data(),qty:0,updatedAt:serverTimestamp()})});
+   tx.set(moveRef,{date,gasId,condition:(fromGodown||toGodown)?condition:'Total',qty,fromId,toId,note,createdAt:serverTimestamp(),createdBy:currentUser.uid,createdByEmail:currentUser.email||''});
+ });$('moveQty').value='';$('moveNote').value='';msg('moveMsg','Movement saved. Godowns track Filled/Empty; Parties and Plants track total cylinders. All signed-in devices will sync.')}catch(e){msg('moveMsg',e.message,true)}
+};
+$('loginBtn').onclick=async()=>{try{await signInWithEmailAndPassword(auth,$('loginEmail').value.trim(),$('loginPassword').value);msg('loginMsg','Signed in.')}catch(e){msg('loginMsg',e.message,true)}};
+$('resetBtn').onclick=async()=>{const email=$('loginEmail').value.trim();if(!email)return msg('loginMsg','Enter your email first.',true);try{await sendPasswordResetEmail(auth,email);msg('loginMsg','Password reset email sent if the account exists.')}catch(e){msg('loginMsg',e.message,true)}};
+$('logoutBtn').onclick=()=>signOut(auth);
+$('balanceLocation').addEventListener('change',renderBalances);
+async function start(){
+ try{
+  const m=await import('./firebase-config.js');cfg=m.firebaseConfig;
+  if(!cfg||!cfg.apiKey||String(cfg.apiKey).includes('PASTE_'))throw Error('Add your Firebase web config in firebase-config.js');
+  app=initializeApp(cfg);auth=getAuth(app);db=getFirestore(app);
+  setConnection('Firebase ready');
+  onAuthStateChanged(auth,async user=>{
+   unsubs.forEach(f=>f());unsubs=[];currentUser=user;
+   $('loginPanel').classList.toggle('hidden',!!user);$('app').classList.toggle('hidden',!user);$('logoutBtn').classList.toggle('hidden',!user);$('userBadge').textContent=user?.email||'';
+   if(!user){setConnection('Signed out');return}
+   $('setupNotice').classList.add('hidden');
+   try {
+     const p = await getDoc(doc(db, 'users', user.uid));
+     profile = p.exists() ? p.data() : null;
+     if (!p.exists()) {
+       msg('loginMsg', 'DIAGNOSTIC: Firestore document users/' + user.uid + ' was NOT FOUND. Check that its document ID exactly matches this UID.', true);
+       await signOut(auth);
+       return;
+     }
+     if (profile.active !== true) {
+       msg('loginMsg', 'DIAGNOSTIC: Profile found for UID ' + user.uid + ', but active=' + String(profile.active) + ' (type: ' + typeof profile.active + '). It must be boolean true.', true);
+       await signOut(auth);
+       return;
+     }
+     setConnection('Cloud synced', true);
+     listenAll();
+   } catch(e) {
+     $('appMsg').textContent = 'Unable to load profile: ' + e.message;
+     $('appMsg').className = 'notice bad';
+   }
+  });
+ }catch(e){setConnection('Setup needed');$('setupNotice').textContent='Setup required: '+e.message+'. See README.txt for exact steps. The app cannot sync until Firebase is configured.';$('setupNotice').className='notice bad'}
+}
+start();
+</script>
+</body></html>
