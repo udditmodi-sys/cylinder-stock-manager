@@ -136,7 +136,13 @@ try {
 }
 setConnection('Cloud synced',true);$('setupNotice').classList.add('hidden');listenAll()}catch(e){$('appMsg').textContent='Unable to load profile: '+e.message;$('appMsg').className='notice bad'}
   });
- }catch(e){setConnection('Setup needed');$('setupNotice').textContent='Setup required: '+e.message+'. See README.txt for exact steps. The app cannot sync until Firebase is configured.';$('setupNotice').className='notice bad'}
+ }catch(e){
+  setConnection('Setup needed');
+  $('setupNotice').textContent =
+    'Setup error: ' + (e.stack || e.message || String(e));
+  $('setupNotice').className = 'notice bad';
+  console.error('Firebase setup error:', e);
+ }
 }
 start();
 </script>
